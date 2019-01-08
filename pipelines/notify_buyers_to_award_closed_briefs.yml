@@ -1,0 +1,28 @@
+
+resource_types:
+  - name: slack-notification
+    type: docker-image
+    source:
+      repository: cfcommunity/slack-notification-resource
+
+resources:
+  - name: alert
+    type: slack-notification
+    source:
+      url: ((slack-webhook))
+  - name: digitalmarketplace-concourse
+    type: git
+    source:
+      uri: https://github.com/lfdebrux/digitalmarketplace-concourse.git
+      branch: ldeb
+
+jobs:
+  - name: notify-buyers-to-award-closed-briefs-job
+    plan:
+      - get: digitalmarketplace-concourse
+      - task: notify-buyers-to-award-closed-briefs.py
+        file: digitalmarketplace-concourse/tasks/notify_buyers_to_award_closed_briefs.yml
+        on_failure:
+          put: alert
+          params:
+            text: "Testing Concourse CI"

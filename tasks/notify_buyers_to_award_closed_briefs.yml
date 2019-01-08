@@ -1,0 +1,42 @@
+
+platform: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: digitalmarketplace/scripts
+
+params:
+  ENVIRONMENT:
+
+  NOTIFY_API_TOKEN:
+
+  BUYER_IDS:
+  DATE_CLOSED:
+  DRY_RUN:
+  NOTIFY_TEMPLATE_ID:
+  OFFSET_DAYS:
+
+run:
+  path: sh
+  args:
+    - -exc
+    - |
+          if [ -n "$OFFSET_DAYS" ]; then
+            FLAGS="--offset-days=$OFFSET_DAYS"
+          fi
+
+          if [ "$DRY_RUN" = "true" ]; then
+            FLAGS="$FLAGS --dry-run=true"
+          fi
+
+          if [ -n "$DATE_CLOSED" ]; then
+            FLAGS="$FLAGS --date-closed=$DATE_CLOSED"
+          fi
+
+          if [ -n "$BUYER_IDS" ]; then
+            FLAGS="$FLAGS --buyer-ids=$BUYER_IDS"
+          fi
+
+          echo scripts/notify-buyers-to-award-closed-briefs.py $ENVIRONMENT $NOTIFY_API_TOKEN $NOTIFY_TEMPLATE_ID $FLAGS
+          false
