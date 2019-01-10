@@ -1,0 +1,113 @@
+
+templates:
+  - &digitalmarketplace-docker-repository-credentials
+    username: ((docker-hub-username))
+    password: ((docker-hub-password))
+
+resource_types:
+  - name: timestamp-resource
+    type: docker-image
+    source:
+      repository: meteogroup/concourse-version-resource
+
+resources:
+  - name: every-3-days-or-so-around-midnight
+    type: time
+    source:
+      days: [Monday, Thursday, Saturday]
+      start: 12 AM
+      stop: 1 AM
+
+  - name: timestamp
+    type: timestamp-resource
+
+  - name: version
+    type: semver
+    source:
+      driver: git
+      uri: https://github.com/alphagov/digitalmarketplace-docker-base.git
+      branch: master
+      file: VERSION
+
+  - name: tasks
+    type: git
+    source:
+      uri: https://github.com/lfdebrux/digitalmarketplace-concourse.git
+      branch: ldeb
+
+  - name: digitalmarketplace-docker-base-repo
+    type: git
+    source:
+      uri: https://github.com/alphagov/digitalmarketplace-docker-base
+
+  - name: digitalmarketplace-base-docker-image
+    type: docker-image
+    source:
+      repository: digitalmarketplace/base
+      tag: concourse-test
+      <<: *digitalmarketplace-docker-repository-credentials
+
+  - name: digitalmarketplace-api-docker-image
+    type: docker-image
+    source:
+      repository: digitalmarketplace/api
+      tag: concourse-test
+      <<: *digitalmarketplace-docker-repository-credentials
+
+  - name: digitalmarketplace-frontend-docker-image
+    type: docker-image
+    source:
+      repository: digitalmarketplace/frontend
+      tag: concourse-test
+      <<: *digitalmarketplace-docker-repository-credentials
+
+jobs:
+
+  - name: build-and-push-base-image
+    plan:
+      - get: every-3-days-or-so-around-midnight
+        trigger: true
+      - get: digitalmarketplace-docker-base-repo
+        trigger: true
+      - get: version
+      - get: timestamp
+      - get: tasks
+      - task: prep-docker-image-metadata
+        file: tasks/tasks/prep_docker_image_metadata.yml
+      - put: digitalmarketplace-base-docker-image
+        params:
+          build: digitalmarketplace-docker-base-repo
+          dockerfile: digitalmarketplace-docker-base-repo/base.docker
+          build_args_file: metadata/build-args
+
+  - name: build-and-push-api-image
+    plan:
+      - get: digitalmarketplace-docker-base-repo
+      - get: digitalmarketplace-base-docker-image
+        passed: [build-and-push-base-image]
+        trigger: true
+      - get: version
+      - get: timestamp
+      - get: tasks
+      - task: prep-docker-image-metadata
+        file: tasks/tasks/prep_docker_image_metadata.yml
+      - put: digitalmarketplace-api-docker-image
+        params:
+          build: digitalmarketplace-docker-base-repo
+          dockerfile: digitalmarketplace-docker-base-repo/api.docker
+
+  - name: build-and-push-frontend-image
+    plan:
+      - get: digitalmarketplace-docker-base-repo
+      - get: digitalmarketplace-base-docker-image
+        passed: [build-and-push-base-image]
+        trigger: true
+      - get: version
+      - get: timestamp
+      - get: tasks
+      - task: prep-docker-image-metadata
+        file: tasks/tasks/prep_docker_image_metadata.yml
+      - put: digitalmarketplace-frontend-docker-image
+        params:
+          build: digitalmarketplace-docker-base-repo
+          dockerfile: digitalmarketplace-docker-base-repo/frontend.docker
