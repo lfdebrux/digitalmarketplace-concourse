@@ -1,0 +1,46 @@
+
+platform: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: alpine
+
+inputs:
+  - name: version
+  - name: timestamp
+
+outputs:
+  - name: metadata
+  - name: metadata-tarball
+
+run:
+  path: sh
+  args:
+    - -ec
+    - |
+      TIMESTAMP=$(cat timestamp/version)
+      TIMESTAMP=${TIMESTAMP//-/}  # delete dashes
+      VERSION=$(cat version/number)
+
+      echo "# metadata/timestamp"
+      tee metadata/timestamp << EOF
+      $TIMESTAMP
+      EOF
+
+      echo "# metadata/tags"
+      tee metadata/tags << EOF
+      $VERSION
+      $VERSION-$TIMESTAMP
+      EOF
+
+      echo "# metadata/build-args"
+      tee metadata/build-args << EOF
+      {
+        "BUILD_VERSION": "$VERSION",
+        "BUILD_DATE": "$TIMESTAMP"
+      }
+      EOF
+
+      echo "# metadata-tarball/metadata.tar.gz"
+      tar cvzf metadata-tarball/metadata.tar.gz metadata
