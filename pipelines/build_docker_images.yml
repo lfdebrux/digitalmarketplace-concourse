@@ -5,12 +5,22 @@ templates:
     password: ((docker-hub-password))
 
 resource_types:
+  - name: slack-notification
+    type: docker-image
+    source:
+      repository: cfcommunity/slack-notification-resource
+
   - name: timestamp-resource
     type: docker-image
     source:
       repository: meteogroup/concourse-version-resource
 
 resources:
+  - name: alert
+    type: slack-notification
+    source:
+      url: ((slack-webhook))
+
   - name: every-3-days-or-so-around-midnight
     type: time
     source:
@@ -79,6 +89,10 @@ jobs:
           build: digitalmarketplace-docker-base-repo
           dockerfile: digitalmarketplace-docker-base-repo/base.docker
           build_args_file: metadata/build-args
+        on_failure:
+          put: alert
+          params:
+            text: "Failed to build and push Docker image digitalmarketplace-base"
 
   - name: build-and-push-api-image
     plan:
@@ -95,6 +109,10 @@ jobs:
         params:
           build: digitalmarketplace-docker-base-repo
           dockerfile: digitalmarketplace-docker-base-repo/api.docker
+        on_failure:
+          put: alert
+          params:
+            text: "Failed to build and push Docker image digitalmarketplace-api"
 
   - name: build-and-push-frontend-image
     plan:
@@ -111,3 +129,7 @@ jobs:
         params:
           build: digitalmarketplace-docker-base-repo
           dockerfile: digitalmarketplace-docker-base-repo/frontend.docker
+        on_failure:
+          put: alert
+          params:
+            text: "Failed to build and push Docker image digitalmarketplace-frontend"
