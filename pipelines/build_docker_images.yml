@@ -60,14 +60,14 @@ resources:
   - name: digitalmarketplace-api-docker-image
     type: docker-image
     source:
-      repository: digitalmarketplace/api
+      repository: digitalmarketplace/base-api
       tag: concourse-test
       <<: *digitalmarketplace-docker-repository-credentials
 
   - name: digitalmarketplace-frontend-docker-image
     type: docker-image
     source:
-      repository: digitalmarketplace/frontend
+      repository: digitalmarketplace/base-frontend
       tag: concourse-test
       <<: *digitalmarketplace-docker-repository-credentials
 
