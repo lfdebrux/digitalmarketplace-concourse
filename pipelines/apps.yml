@@ -1,0 +1,230 @@
+
+resources:
+  - name: digitalmarketplace-aws
+    type: git
+    source:
+      uri: https://github.com/alphagov/digitalmarketplace-aws.git
+      branch: concourse
+
+  - name: digitalmarketplace-credentials
+    type: git
+    source:
+      uri: git@github.com:alphagov/digitalmarketplace-credentials.git
+      branch: master
+      private_key: ((github-private-key))
+
+  - name: tasks
+    type: git
+    source:
+      uri: https://github.com/lfdebrux/digitalmarketplace-concourse.git
+      branch: ldeb
+
+  - name: antivirus-api
+    type: git
+    source:
+      uri: https://github.com/alphagov/digitalmarketplace-antivirus-api.git
+      branch: master
+
+  - name: antivirus-api-docker
+    type: docker-image
+    source:
+      repository: digitalmarketplace/antivirus-api
+      tag: concourse-test
+      username: ((docker-hub-username))
+      password: ((docker-hub-password))
+
+  - name: admin-frontend
+    type: git
+    source:
+      uri: https://github.com/alphagov/digitalmarketplace-admin-frontend.git
+      branch: master
+
+  - name: admin-frontend-docker
+    type: docker-image
+    source:
+      repository: digitalmarketplace/admin-frontend
+      tag: concourse-test
+      username: ((docker-hub-username))
+      password: ((docker-hub-password))
+
+jobs:
+
+  - name: build-admin-frontend
+    plan:
+      - get: admin-frontend
+        trigger: true
+      - put: admin-frontend-docker
+        params:
+          build: admin-frontend
+          tag_file: admin-frontend/.git/short_ref
+          tag_prefix: release-
+
+  - name: build-antivirus-api
+    plan:
+      - get: antivirus-api
+        trigger: true
+      - put: antivirus-api-docker
+        params:
+          build: antivirus-api
+          tag_file: antivirus-api/.git/short_ref
+          tag_prefix: release-
+
+  - name: release-admin-frontend-to-preview
+    plan:
+      - aggregate:
+        - get: admin-frontend
+          passed: [build-admin-frontend]
+          trigger: true
+        - get: admin-frontend-docker
+          passed: [build-admin-frontend]
+          trigger: true
+        - get: digitalmarketplace-aws
+        - get: digitalmarketplace-credentials
+        - get: tasks
+      - task: generate-manifest
+        file: tasks/tasks/generate_manifest.yml
+        input_mapping:
+          application-repo: admin-frontend
+        params:
+          APPLICATION_NAME: admin-frontend
+          STAGE: preview
+
+  - name: release-antivirus-api-to-preview
+    plan:
+      - aggregate:
+        - get: antivirus-api
+          passed: [build-antivirus-api]
+          trigger: true
+        - get: antivirus-api-docker
+          passed: [build-antivirus-api]
+          trigger: true
+        - get: digitalmarketplace-aws
+        - get: digitalmarketplace-credentials
+        - get: tasks
+      - task: generate-manifest
+        file: tasks/tasks/generate_manifest.yml
+        input_mapping:
+          application-repo: antivirus-api
+        params:
+          APPLICATION_NAME: antivirus-api
+          STAGE: preview
+
+  - name: functional-test-on-preview
+    plan:
+      - aggregate:
+        - get: admin-frontend
+          passed: [release-admin-frontend-to-preview]
+          trigger: true
+        - get: antivirus-api
+          passed: [release-antivirus-api-to-preview]
+          trigger: true
+        - get: admin-frontend-docker
+          passed: [release-admin-frontend-to-preview]
+          trigger: true
+        - get: antivirus-api-docker
+          passed: [release-antivirus-api-to-preview]
+          trigger: true
+
+  - name: release-admin-frontend-to-staging
+    plan:
+      - aggregate:
+        - get: admin-frontend
+          passed: [functional-test-on-preview]
+        - get: admin-frontend-docker
+          passed: [functional-test-on-preview]
+        - get: digitalmarketplace-aws
+        - get: digitalmarketplace-credentials
+        - get: tasks
+      - task: generate-manifest
+        file: tasks/tasks/generate_manifest.yml
+        input_mapping:
+          application-repo: admin-frontend
+        params:
+          APPLICATION_NAME: admin-frontend
+          STAGE: staging
+
+  - name: release-antivirus-api-to-staging
+    plan:
+      - aggregate:
+        - get: antivirus-api
+          passed: [functional-test-on-preview]
+        - get: antivirus-api-docker
+          passed: [functional-test-on-preview]
+        - get: digitalmarketplace-aws
+        - get: digitalmarketplace-credentials
+        - get: tasks
+      - task: generate-manifest
+        file: tasks/tasks/generate_manifest.yml
+        input_mapping:
+          application-repo: antivirus-api
+        params:
+          APPLICATION_NAME: antivirus-api
+          STAGE: staging
+
+  - name: functional-test-on-staging
+    plan:
+      - aggregate:
+        - get: admin-frontend
+          passed: [release-admin-frontend-to-staging]
+          trigger: true
+        - get: antivirus-api
+          passed: [release-antivirus-api-to-staging]
+          trigger: true
+        - get: admin-frontend-docker
+          passed: [release-admin-frontend-to-staging]
+          trigger: true
+        - get: antivirus-api-docker
+          passed: [release-antivirus-api-to-staging]
+          trigger: true
+
+  - name: release-admin-frontend-to-production
+    plan:
+      - aggregate:
+        - get: admin-frontend
+          passed: [functional-test-on-staging]
+        - get: admin-frontend-docker
+          passed: [functional-test-on-staging]
+        - get: digitalmarketplace-aws
+        - get: digitalmarketplace-credentials
+        - get: tasks
+      - task: generate-manifest
+        file: tasks/tasks/generate_manifest.yml
+        input_mapping:
+          application-repo: admin-frontend
+        params:
+          APPLICATION_NAME: admin-frontend
+          STAGE: production
+
+  - name: release-antivirus-api-to-production
+    plan:
+      - aggregate:
+        - get: antivirus-api
+          passed: [functional-test-on-staging]
+        - get: antivirus-api-docker
+          passed: [functional-test-on-staging]
+        - get: digitalmarketplace-aws
+        - get: digitalmarketplace-credentials
+        - get: tasks
+      - task: generate-manifest
+        file: tasks/tasks/generate_manifest.yml
+        input_mapping:
+          application-repo: antivirus-api
+        params:
+          APPLICATION_NAME: antivirus-api
+          STAGE: production
+
+  - name: functional-test-on-production
+    plan:
+      - aggregate:
+        - get: admin-frontend
+          passed: [release-admin-frontend-to-production]
+          trigger: true
+        - get: antivirus-api
+          passed: [release-antivirus-api-to-production]
+          trigger: true
+        - get: admin-frontend-docker
+          passed: [release-admin-frontend-to-production]
+          trigger: true
+        - get: antivirus-api-docker
+          passed: [release-antivirus-api-to-production]
+          trigger: true
