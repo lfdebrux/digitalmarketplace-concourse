@@ -1,0 +1,33 @@
+platform: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: digitalmarketplace/scripts
+
+inputs:
+  - name: digitalmarketplace-aws
+  - name: digitalmarketplace-credentials
+  - name: application-repo
+
+outputs:
+  - name: manifest
+
+params:
+  APPLICATION_NAME:
+  STAGE:
+
+run:
+  path: sh
+  args:
+    - -c
+    - |
+      export DM_CREDENTIALS_REPO=$(pwd)/digitalmarketplace-credentials
+      export RELEASE_NAME="release-$(cat application-repo/.git/short_ref)"
+
+      mkdir -p manifest
+
+      cd digitalmarketplace-aws
+      make requirements
+      echo "# generating manifest for digitalmarketplace/$APPLICATION_NAME:$RELEASE_NAME on $STAGE"
+      make generate-manifest > ../manifest/$APPLICATION_NAME_manifest.yml
